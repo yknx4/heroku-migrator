@@ -52,13 +52,16 @@ run_mk() {
 
   printf '#!/bin/sh\nprintf "bucardo %%s\\n" "$*" >> "%s"\nexit 0\n' "$LOG" > "$bin/bucardo"
 
-  # psql stub: answers the replica version probe, swallows the schema restore,
-  # returns no generated-column tables, logs nothing else.
+  # psql stub: answers the replica version probe, reports one application
+  # schema/table for Bucardo to add, swallows the schema restore, returns no
+  # pg_partman or generated-column tables, logs nothing else.
   cat > "$bin/psql" <<EOF
 #!/bin/sh
 for a in "\$@"; do
   case "\$a" in
     "SHOW server_version_num;") echo "170000"; exit 0;;
+    *"SELECT format('%I.%I', n.nspname, c.relname)"*) echo "public.widgets"; exit 0;;
+    *"c.relkind IN ('r', 'p', 'S')"*) echo "public"; exit 0;;
   esac
 done
 cat >/dev/null 2>&1
