@@ -6,9 +6,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TMP=/tmp
 ENV TMPDIR=/tmp
 ENV BUCARDO_VERSION=5.6.0
-ENV PATH="/usr/lib/postgresql/17/bin:$PATH"
+ENV PATH="/usr/lib/postgresql/18/bin:$PATH"
+# UTF-8 locale so Perl (Bucardo) and psql don't fall back to ASCII/POSIX
+# when handling non-ASCII identifiers and data.
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
-# Install PostgreSQL 17 and Bucardo dependencies
+# Install PostgreSQL 18 and Bucardo dependencies. pg_dump refuses to dump a
+# server newer than itself, so the client tools must be at least as new as the
+# Heroku source; older sources and PlanetScale targets are still supported.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       curl \
@@ -28,8 +33,8 @@ RUN apt-get update && \
       libdbd-pg-perl \
       libdbix-safe-perl \
       libpod-parser-perl \
-      postgresql-17 \
-      postgresql-plperl-17 \
+      postgresql-18 \
+      postgresql-plperl-18 \
       make \
       perl \
     && rm -rf /var/lib/apt/lists/*
@@ -61,5 +66,13 @@ COPY entrypoint.sh /opt/bucardo/entrypoint.sh
 RUN chmod +x /opt/bucardo/entrypoint.sh /opt/bucardo/scripts/*.sh
 
 EXPOSE ${PORT:-8080}
+
+# PostgreSQL refuses to run as root, so default to a non-root user for plain
+# `docker run`. Heroku still overrides this with a random UID (in group 0),
+# which entrypoint.sh registers in /etc/passwd at startup.
+RUN useradd -M -d /opt/bucardo -u 1000 -g 0 bucardo && \
+    chown -R bucardo:0 /opt/bucardo /var/run/bucardo /var/log/bucardo
+USER bucardo
+WORKDIR /opt/bucardo
 
 ENTRYPOINT ["/opt/bucardo/entrypoint.sh"]
